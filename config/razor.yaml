@@ -1,0 +1,7 @@
+razor_imu_node:
+  ros__parameters:
+    port: "/dev/ttyACM0"
+    baudrate: 9600
+    frame_id: "imu_link"
+    imu_topic: "imu/data"
+    mag_topic: "imu/mag"

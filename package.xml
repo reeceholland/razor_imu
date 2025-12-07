@@ -4,7 +4,7 @@
   <version>0.0.1</version>
   <description>ROS 2 C++ driver for the 9DoF Razor IMU</description>
 
-  <maintainer email="reece@example.com">Reece</maintainer>
+  <maintainer email="reece.j.holland@gmail.com">Reece Holland</maintainer>
   <license>BSD-3-Clause</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
