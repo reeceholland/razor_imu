@@ -39,26 +39,6 @@ Where:
 
 ------------------------------------------------------------------------
 
-## Package Structure
-
-    razor_imu/
-    ├── include/
-    │   └── razor_imu/
-    │       └── razor_imu_node.hpp
-    ├── src/
-    │   └── razor_imu_node.cpp
-    ├── config/
-    │   └── razor.yaml
-    ├── launch/
-    │   └── razor.launch.py
-    ├── test/
-    │   └── test_razor_imu_node.cpp
-    ├── CMakeLists.txt
-    ├── package.xml
-    └── README.md
-
-------------------------------------------------------------------------
-
 ## Dependencies
 
 -   ROS 2 Humble
