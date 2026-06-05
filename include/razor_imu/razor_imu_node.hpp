@@ -34,13 +34,15 @@ private:
                        double & ax, double & ay, double & az,
                        double & gx, double & gy, double & gz,
                        double & mx, double & my, double & mz,
-                       double & qw, double & qx, double & qy, double & qz);
+                       double & qw, double & qx, double & qy, double & qz,
+                       bool & has_orientation);
 
   void processAndPublish(double time_ms,
                          double ax_g, double ay_g, double az_g,
                          double gx_dps, double gy_dps, double gz_dps,
                          double mx_uT, double my_uT, double mz_uT,
-                         double qw, double qx, double qy, double qz);
+                         double qw, double qx, double qy, double qz,
+                         bool has_orientation);
 
   // Parameters
   std::string port_;

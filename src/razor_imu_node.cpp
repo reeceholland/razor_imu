@@ -192,11 +192,12 @@ void RazorIMUNode::readLoop()
     double gx_dps, gy_dps, gz_dps;
     double mx_uT, my_uT, mz_uT;
     double qw, qx, qy, qz;
+    bool has_orientation;
 
     // Parse the line to extract sensor data
     if (!parseSampleLine(line, time_ms, ax_g, ay_g, az_g,
                          gx_dps, gy_dps, gz_dps, mx_uT, my_uT, mz_uT,
-                         qw, qx, qy, qz))
+                         qw, qx, qy, qz, has_orientation))
     {
       RCLCPP_DEBUG(get_logger(), "Ignored line: '%s'", line.c_str());
       continue;
@@ -207,14 +208,16 @@ void RazorIMUNode::readLoop()
                       ax_g, ay_g, az_g,
                       gx_dps, gy_dps, gz_dps,
                       mx_uT, my_uT, mz_uT,
-                      qw, qx, qy, qz);
+                      qw, qx, qy, qz,
+                      has_orientation);
   }
 }
 
 
 /**
  * @brief Parse a line of sensor data from the IMU.
- * line format:
+ * supported line formats:
+ * time_ms, ax, ay, az, gx, gy, gz, mx, my, mz
  * time_ms, ax, ay, az, gx, gy, gz, mx, my, mz, qw, qx, qy, qz
  * 
  * @param line The input line containing sensor data.
@@ -232,6 +235,7 @@ void RazorIMUNode::readLoop()
  * @param qx Quaternion X component.
  * @param qy Quaternion Y component.
  * @param qz Quaternion Z component.
+ * @param has_orientation True when the sample includes quaternion data.
  * @return true if parsing was successful, false otherwise.
  */
 bool RazorIMUNode::parseSampleLine(const std::string & line,
@@ -239,7 +243,8 @@ bool RazorIMUNode::parseSampleLine(const std::string & line,
                                    double & ax, double & ay, double & az,
                                    double & gx, double & gy, double & gz,
                                    double & mx, double & my, double & mz,
-                                   double & qw, double & qx, double & qy, double & qz)
+                                   double & qw, double & qx, double & qy, double & qz,
+                                   bool & has_orientation)
 {
   // Copy the input line to a modifiable string
   std::string data = line;
@@ -264,8 +269,9 @@ bool RazorIMUNode::parseSampleLine(const std::string & line,
     }
   }
 
-  // Ensure we have the correct number of tokens
-  if (tokens.size() < 14) {
+  // The SparkFun firmware may output raw accel/gyro/mag only, or include a quaternion.
+  if (tokens.size() != 10 && tokens.size() < 14) {
+    RCLCPP_DEBUG(get_logger(), "Unexpected IMU token count: %zu", tokens.size());
     return false;
   }
 
@@ -289,11 +295,20 @@ bool RazorIMUNode::parseSampleLine(const std::string & line,
     my = std::stod(tokens[8]);
     mz = std::stod(tokens[9]);
 
-    // Quaternion order: qw, qx, qy, qz
-    qw = std::stod(tokens[10]);
-    qx = std::stod(tokens[11]);
-    qy = std::stod(tokens[12]);
-    qz = std::stod(tokens[13]);
+    has_orientation = tokens.size() >= 14;
+    if (has_orientation) {
+      // Quaternion order: qw, qx, qy, qz
+      qw = std::stod(tokens[10]);
+      qx = std::stod(tokens[11]);
+      qy = std::stod(tokens[12]);
+      qz = std::stod(tokens[13]);
+    } else {
+      // No orientation in this firmware mode. Publish the rest of the sample.
+      qw = 1.0;
+      qx = 0.0;
+      qy = 0.0;
+      qz = 0.0;
+    }
   } catch (...) {
     return false;
   }
@@ -318,12 +333,14 @@ bool RazorIMUNode::parseSampleLine(const std::string & line,
  * @param qx Quaternion X component.
  * @param qy Quaternion Y component.
  * @param qz Quaternion Z component.
+ * @param has_orientation True when the sample includes quaternion data.
  */
 void RazorIMUNode::processAndPublish(double time_ms,
                                      double ax_g, double ay_g, double az_g,
                                      double gx_dps, double gy_dps, double gz_dps,
                                      double mx_uT, double my_uT, double mz_uT,
-                                     double qw, double qx, double qy, double qz)
+                                     double qw, double qx, double qy, double qz,
+                                     bool has_orientation)
 {
   (void)time_ms;  // Unused parameter for now
   auto stamp = get_clock()->now();
@@ -353,31 +370,38 @@ void RazorIMUNode::processAndPublish(double time_ms,
   imu_msg.header.stamp = stamp;
   imu_msg.header.frame_id = frame_id_;
 
-  // Calculate norm of quaternion
-  double norm = std::sqrt(qw*qw + qx*qx + qy*qy + qz*qz);
+  if (has_orientation) {
+    double norm = std::sqrt(qw*qw + qx*qx + qy*qy + qz*qz);
 
-  // If norm is too small or NaN, skip this frame
-  if (norm < 1e-6 || std::isnan(norm)) {
-    RCLCPP_WARN(this->get_logger(), "Invalid quaternion, skipping frame");
-    return;
+    if (norm < 1e-6 || std::isnan(norm)) {
+      RCLCPP_WARN_THROTTLE(
+          this->get_logger(), *get_clock(), 2000,
+          "Invalid IMU quaternion; publishing sample without orientation");
+      has_orientation = false;
+    } else {
+      // Normalize the firmware quaternion before publishing it.
+      qw /= norm;
+      qx /= norm;
+      qy /= norm;
+      qz /= norm;
+
+      imu_msg.orientation.w = qw;
+      imu_msg.orientation.x = qx;
+      imu_msg.orientation.y = qy;
+      imu_msg.orientation.z = qz;
+
+      // TODO(Reece): Tune these values based on sensor characteristics.
+      imu_msg.orientation_covariance[0] = 0.01;
+      imu_msg.orientation_covariance[4] = 0.01;
+      imu_msg.orientation_covariance[8] = 0.03;
+    }
   }
 
-  // Normalize quaternion
-  qw /= norm;
-  qx /= norm;
-  qy /= norm;
-  qz /= norm;
-
-  // Orientation from firmware quaternion
-  imu_msg.orientation.w = qw;
-  imu_msg.orientation.x = qx;
-  imu_msg.orientation.y = qy;
-  imu_msg.orientation.z = qz;
-
-  // Orientation covariance TODO(Reece): Tune these values based on sensor characteristics.
-  imu_msg.orientation_covariance[0] = 0.01;  // roll var
-  imu_msg.orientation_covariance[4] = 0.01;  // pitch var
-  imu_msg.orientation_covariance[8] = 0.03;  // yaw var
+  if (!has_orientation) {
+    // ROS uses covariance[0] == -1 to mean this field is intentionally absent.
+    imu_msg.orientation.w = 1.0;
+    imu_msg.orientation_covariance[0] = -1.0;
+  }
 
   // Angular velocity
   imu_msg.angular_velocity.x = gx;
