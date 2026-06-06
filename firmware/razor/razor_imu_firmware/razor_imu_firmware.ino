@@ -148,9 +148,12 @@ void loop()
   if ( imu.dmpUpdateFifo() != INV_SUCCESS )
     return; // If that fails (uh, oh), return to top
 
-  // If enabled, read from the compass.
+  // If the compass is unavailable, still publish the rest of the sample.
+  // Keep the enabled fields unchanged so the CSV shape stays predictable.
   if ( (enableCompass || enableHeading) && (imu.updateCompass() != INV_SUCCESS) )
-    return; // If compass read fails (uh, oh) return to top
+  {
+    // Continue with the previous magnetometer values.
+  }
 
   // If logging (to either UART and SD card) is enabled
   if ( enableSerialLogging || enableSDLogging)
@@ -409,11 +412,8 @@ void parseSerialInput(char c)
   unsigned short temp;
   switch (c)
   {
-  case PAUSE_LOGGING: // Pause logging on SPACE
+  case PAUSE_LOGGING: // Pause logging
     enableSerialLogging = !enableSerialLogging;
-#ifdef ENABLE_NVRAM_STORAGE
-    flashEnableSerialLogging.write(enableSerialLogging);
-#endif
     break;
   case ENABLE_TIME: // Enable time (milliseconds) logging
     enableTimeLog = !enableTimeLog;
@@ -504,7 +504,7 @@ void parseSerialInput(char c)
 #endif
     LOG_PORT.println("Gyro FSR set to +/-" + String(temp) + " dps");
     break;
-  case ENABLE_SD_LOGGING: // Enable/disable SD card logging
+  case TOGGLE_SD_LOGGING: // Enable/disable SD card logging
     enableSDLogging = !enableSDLogging;
 #ifdef ENABLE_NVRAM_STORAGE
     flashEnableSDLogging.write(enableSDLogging);
@@ -557,6 +557,11 @@ void parseSerialInput(char c)
       gyroFSR = flashGyroFSR.read();
       fifoRate = flashLogRate.read();
     }
+
+    // The rover relies on the USB serial stream. Do not allow a stale
+    // persisted setting, or an accidental serial command, to boot silently.
+    enableSerialLogging = true;
+    flashEnableSerialLogging.write(enableSerialLogging);
   }
 #endif
   

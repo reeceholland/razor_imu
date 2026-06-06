@@ -47,7 +47,7 @@
 ///////////////////////
 // SD Logging Config //
 ///////////////////////
-#define ENABLE_SD_LOGGING true // Default SD logging (can be changed via serial menu)
+#define ENABLE_SD_LOGGING false // Default SD logging (can be changed via serial menu)
 #define LOG_FILE_INDEX_MAX 999 // Max number of "logXXX.txt" files
 #define LOG_FILE_PREFIX "log"  // Prefix name for log files
 #define LOG_FILE_SUFFIX "txt"  // Suffix name for log files
@@ -57,7 +57,7 @@
 /////////////////////
 // Serial Commands //
 /////////////////////
-#define PAUSE_LOGGING     ' ' // Space - Pause SD/UART logging
+#define PAUSE_LOGGING     'p' // Pause UART logging
 #define ENABLE_TIME       't' // Enable/disable time log (milliseconds)
 #define ENABLE_ACCEL      'a' // Enable/disable accelerometer log (ax, ay, az)
 #define ENABLE_GYRO       'g' // Enable/disable gyroscope log (gx, gy, gz)
@@ -69,7 +69,7 @@
 #define SET_LOG_RATE      'r' // Adjust logging rate from 1-200 Hz (in 10 Hz increments)
 #define SET_ACCEL_FSR     'A' // Set accelerometer FSR (2, 4, 8, 16g)
 #define SET_GYRO_FSR      'G' // Set gyroscope FSR (250, 500, 1000, 2000 dps)
-#define ENABLE_SD_LOGGING 's' // Enable/disable SD-card logging
+#define TOGGLE_SD_LOGGING 's' // Enable/disable SD-card logging
 
 //////////////////////////
 // Hardware Definitions //
